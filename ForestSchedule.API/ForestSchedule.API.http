@@ -1,6 +1,3 @@
 @ForestSchedule.API_HostAddress = http://localhost:5045
 
-GET {{ForestSchedule.API_HostAddress}}/weatherforecast/
-Accept: application/json
-
 ###

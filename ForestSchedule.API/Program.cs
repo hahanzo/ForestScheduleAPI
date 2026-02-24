@@ -20,6 +20,24 @@ builder.Services.AddScoped<ILessonRepository, LessonRepository>();
 
 var app = builder.Build();
 
+// Auto migration and data seeding
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
+
+        await context.Database.MigrateAsync();
+
+        await DataSeeder.SeedAsync(context);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Database loading exption: {ex.Message}");
+    }
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
