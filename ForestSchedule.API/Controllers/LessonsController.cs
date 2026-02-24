@@ -1,4 +1,5 @@
-﻿using ForestSchedule.Application.DTOs.LessonDtos;
+﻿using ForestSchedule.Application.DTOs;
+using ForestSchedule.Application.DTOs.LessonDtos;
 using ForestSchedule.Application.Interfaces;
 using ForestSchedule.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -108,6 +109,31 @@ namespace ForestSchedule.API.Controllers
             await repository.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        // GET: api/lessons/search
+        [HttpGet("search")]
+        public async Task<ActionResult<PagedResult<LessonDto>>> GetPaged([FromQuery] LessonQueryParameters parameters)
+        {
+            var (lessons, totalCount) = await repository.GetLessonsPagedAsync(parameters);
+
+            var dtos = lessons.Select(l => new LessonDto(
+                l.Id,
+                l.Subject.Name,
+                l.Teacher?.FullName ?? "Not assigned",
+                l.Group.Name,
+                l.Room?.Name ?? "Not assigned",
+                l.DayOfWeek,
+                l.LessonNumber,
+                l.TimeStart,
+                l.TimeEnd,
+                l.Type,
+                l.WeekType
+            )).ToList();
+
+            var result = new PagedResult<LessonDto>(dtos, totalCount, parameters.PageNumber, parameters.PageSize);
+
+            return Ok(result);
         }
     }
 }

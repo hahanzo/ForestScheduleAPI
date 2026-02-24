@@ -1,4 +1,5 @@
-﻿using ForestSchedule.Application.Interfaces;
+﻿using ForestSchedule.Application.DTOs.LessonDtos;
+using ForestSchedule.Application.Interfaces;
 using ForestSchedule.Domain.Entities;
 using ForestSchedule.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -50,6 +51,53 @@ namespace ForestSchedule.Infrastructure.Repositories
         public async Task SaveChangesAsync()
         {
             await context.SaveChangesAsync();
+        }
+
+        public async Task<(IEnumerable<Lesson> Lessons, int TotalCount)> GetLessonsPagedAsync(LessonQueryParameters p)
+        {
+            var query = context.Lessons
+                .Include(l => l.Group)
+                .Include(l => l.Teacher)
+                .Include(l => l.Subject)
+                .Include(l => l.Room)
+                .AsQueryable();
+
+            // Filtration
+            if (p.GroupId.HasValue)
+                query = query.Where(l => l.GroupId == p.GroupId.Value);
+
+            if (p.TeacherId.HasValue)
+                query = query.Where(l => l.TeacherId == p.TeacherId.Value);
+
+            // Searching
+            if (!string.IsNullOrWhiteSpace(p.SearchTerm))
+            {
+                var search = p.SearchTerm.ToLower();
+                query = query.Where(l =>
+                    l.Subject.Name.ToLower().Contains(search) ||
+                    (l.Teacher != null && l.Teacher.FullName.ToLower().Contains(search)) ||
+                    (l.Room != null && l.Room.Name.ToLower().Contains(search)));
+            }
+
+            // Sorting
+            query = p.SortBy?.ToLower() switch
+            {
+                "subject" => p.SortDescending ? query.OrderByDescending(l => l.Subject.Name) : query.OrderBy(l => l.Subject.Name),
+                "day" => p.SortDescending
+                    ? query.OrderByDescending(l => l.DayOfWeek).ThenByDescending(l => l.LessonNumber)
+                    : query.OrderBy(l => l.DayOfWeek).ThenBy(l => l.LessonNumber),
+                _ => p.SortDescending ? query.OrderByDescending(l => l.Id) : query.OrderBy(l => l.Id)
+            };
+
+            var totalCount = await query.CountAsync();
+
+            // Pagination
+            var lessons = await query
+                .Skip((p.PageNumber - 1) * p.PageSize)
+                .Take(p.PageSize)
+                .ToListAsync();
+
+            return (lessons, totalCount);
         }
     }
 }
