@@ -1,5 +1,6 @@
 ﻿using ForestSchedule.Application.DTOs.LessonDtos;
 using ForestSchedule.Domain.Entities;
+using ForestSchedule.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
@@ -10,6 +11,17 @@ namespace ForestSchedule.Infrastructure.Data
     {
         public static async Task SeedAsync(AppDbContext context)
         {
+            if (!await context.Users.AnyAsync(u => u.Role == RoleType.Admin))
+            {
+                context.Users.Add(new User
+                {
+                    Email = "superadmin@nltu.edu.ua",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("AdminPass123!"),
+                    Role = RoleType.Admin
+                });
+                await context.SaveChangesAsync();
+            }
+
             if (await context.Lessons.AnyAsync())
             {
                 Console.WriteLine("Database is full. Skip seeding");

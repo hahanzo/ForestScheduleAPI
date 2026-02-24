@@ -2,16 +2,19 @@
 using ForestSchedule.Application.DTOs.LessonDtos;
 using ForestSchedule.Application.Interfaces;
 using ForestSchedule.Domain.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ForestSchedule.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class LessonsController(ILessonRepository repository) : ControllerBase
     {
         // GET: api/lessons
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<LessonDto>>> GetAll()
         {
             var lessons = await repository.GetAllLessonsAsync();
@@ -36,6 +39,7 @@ namespace ForestSchedule.API.Controllers
 
         // GET: api/lessons/5
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<ActionResult<LessonDto>> GetById(int id)
         {
             var l = await repository.GetLessonByIdAsync(id);
@@ -52,6 +56,7 @@ namespace ForestSchedule.API.Controllers
 
         // POST: api/lessons
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<LessonDto>> Create([FromBody] CreateLessonDto dto)
         {
             var lesson = new Lesson
@@ -76,6 +81,7 @@ namespace ForestSchedule.API.Controllers
 
         // PUT: api/lessons/5
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateLessonDto dto)
         {
             var lesson = await repository.GetLessonByIdAsync(id);
@@ -100,6 +106,7 @@ namespace ForestSchedule.API.Controllers
 
         // DELETE: api/lessons/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
             var lesson = await repository.GetLessonByIdAsync(id);
@@ -113,6 +120,7 @@ namespace ForestSchedule.API.Controllers
 
         // GET: api/lessons/search
         [HttpGet("search")]
+        [AllowAnonymous]
         public async Task<ActionResult<PagedResult<LessonDto>>> GetPaged([FromQuery] LessonQueryParameters parameters)
         {
             var (lessons, totalCount) = await repository.GetLessonsPagedAsync(parameters);
