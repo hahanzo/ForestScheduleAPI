@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using ForestSchedule.API.Middlewares;
 using ForestSchedule.Application.Interfaces;
 using ForestSchedule.Application.Services;
 using ForestSchedule.Infrastructure.Data;
@@ -16,10 +17,15 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
 });
 
-// Repositories and Services
+// Repositories
 builder.Services.AddScoped<ILessonRepository, LessonRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+// Aplication Services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ILessonService, LessonService>();
+// Middlewares
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 // Database ñonfiguration
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -92,6 +98,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
