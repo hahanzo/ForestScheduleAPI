@@ -1,4 +1,5 @@
-﻿using ForestSchedule.Application.DTOs;
+﻿using ForestSchedule.API.Filters;
+using ForestSchedule.Application.DTOs;
 using ForestSchedule.Application.DTOs.LessonDtos;
 using ForestSchedule.Application.Interfaces;
 using ForestSchedule.Application.Services;
@@ -14,6 +15,7 @@ namespace ForestSchedule.API.Controllers
     {
         [HttpGet]
         [AllowAnonymous]
+        [ServiceFilter(typeof(CacheResourceFilter))]
         public async Task<ActionResult<IEnumerable<LessonDto>>> GetAll()
         {
             return Ok(await lessonService.GetAllAsync());
@@ -36,6 +38,7 @@ namespace ForestSchedule.API.Controllers
 
         [HttpPost]
         [Authorize(Roles = "Admin")]
+        [ValidateDaysFilter]
         public async Task<ActionResult<LessonDto>> Create([FromBody] CreateLessonDto dto)
         {
             var createdDto = await lessonService.CreateAsync(dto);

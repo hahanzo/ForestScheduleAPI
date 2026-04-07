@@ -1,0 +1,26 @@
+﻿@page "/"
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
+@inject NavigationManager Nav
+
+<div class="text-center mt-5">
+    <p>Перевірка сесії...</p>
+</div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "authToken");
+
+            if (string.IsNullOrEmpty(token))
+            {
+                Nav.NavigateTo("/login");
+            }
+            else
+            {
+                Nav.NavigateTo("/lessons");
+            }
+        }
+    }
+}

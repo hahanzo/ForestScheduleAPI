@@ -1,0 +1,126 @@
+﻿@page "/lessons"
+@using ForestSchedule.Client.Services
+@inject ApiClient Api
+
+<h3>Розклад занять</h3>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <input @bind="searchTerm" class="form-control" placeholder="Пошук (предмет, аудиторія)..." />
+    </div>
+    <div class="col-md-2">
+        <input type="number" @bind="groupId" class="form-control" placeholder="ID Групи" />
+    </div>
+    <div class="col-md-3">
+        <select @bind="sortBy" class="form-select">
+            <option value="day">За днем тижня</option>
+            <option value="subject">За предметом</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-secondary" @onclick="LoadData">Застосувати</button>
+    </div>
+</div>
+
+@if (errorMessage != null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (lessons == null)
+{
+    <p><em>Завантаження даних...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Предмет</th>
+                <th>Викладач</th>
+                <th>Група</th>
+                <th>День</th>
+                <th>Дії</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var lesson in lessons.Items)
+            {
+                <tr>
+                    <td>@lesson.SubjectName</td>
+                    <td>@lesson.TeacherName</td>
+                    <td>@lesson.GroupName</td>
+                    <td>@lesson.DayOfWeek</td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteLesson(lesson.Id)">Видалити</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div>
+        <button class="btn btn-outline-primary" disabled="@(pageNumber == 1)" @onclick="PrevPage">Попередня</button>
+        <span> Сторінка @pageNumber </span>
+        <button class="btn btn-outline-primary" @onclick="NextPage">Наступна</button>
+    </div>
+}
+
+@code {
+    private PagedResult? lessons;
+    private string? errorMessage;
+
+    private string searchTerm = "";
+    private int? groupId;
+    private string sortBy = "day";
+    private int pageNumber = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            var url = $"Lessons/search?PageNumber={pageNumber}&PageSize=10&SortBy={sortBy}";
+            if (!string.IsNullOrEmpty(searchTerm)) url += $"&SearchTerm={searchTerm}";
+            if (groupId.HasValue) url += $"&GroupId={groupId}";
+
+            lessons = await Api.GetAsync<PagedResult>(url);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Load error: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteLesson(int id)
+    {
+        var response = await Api.DeleteAsync($"Lessons/{id}");
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = "Delete error. You may not have administrator rights.";
+        }
+    }
+
+    private async Task PrevPage() { if (pageNumber > 1) { pageNumber--; await LoadData(); } }
+    private async Task NextPage() { pageNumber++; await LoadData(); }
+
+    public class PagedResult { 
+        public List<LessonDto> Items { get; set; } = new(); 
+        public int TotalCount { get; set; } 
+    }
+    
+    public class LessonDto { 
+        public int Id { get; set; } 
+        public string SubjectName { get; set; } = ""; 
+        public string TeacherName { get; set; } = ""; 
+        public string GroupName { get; set; } = ""; 
+        public int DayOfWeek { get; set; } 
+    }
+}

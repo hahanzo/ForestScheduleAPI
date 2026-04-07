@@ -1,0 +1,71 @@
+﻿@page "/login"
+@using ForestSchedule.Client.Services
+@inject ApiClient Api
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
+@inject NavigationManager Nav
+
+<h3>Вхід в систему</h3>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+<div class="mb-3">
+    <label>Email:</label>
+    <input @bind="loginDto.Email" class="form-control" />
+</div>
+<div class="mb-3">
+    <label>Пароль:</label>
+    <input type="password" @bind="loginDto.Password" class="form-control" />
+</div>
+<button class="btn btn-primary" @onclick="ExecuteLogin" disabled="@isLoading">
+    @if (isLoading)
+    {
+        <span>Завантаження...</span>
+    }
+    else
+    {
+        <span>Увійти</span>
+    }
+</button>
+
+@code {
+    private LoginRequest loginDto = new();
+    private string? errorMessage;
+    private bool isLoading;
+
+    private async Task ExecuteLogin()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        var response = await Api.PostAsync("Auth/login", loginDto);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
+
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", result!.Token);
+
+            Nav.NavigateTo("/lessons");
+        }
+        else
+        {
+            errorMessage = "Incorrect email or password.";
+        }
+
+        isLoading = false;
+    }
+
+    public class LoginRequest
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+
+    public class AuthResponse
+    {
+        public string Token { get; set; } = "";
+    }
+}

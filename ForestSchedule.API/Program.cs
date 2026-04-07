@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using ForestSchedule.API.Filters;
 using ForestSchedule.API.Middlewares;
 using ForestSchedule.Application.Interfaces;
 using ForestSchedule.Application.Services;
@@ -17,19 +18,40 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
 });
 
+// Database ñonfiguration and cache
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddScoped<ForestSchedule.API.Filters.CacheResourceFilter>();
+builder.Services.AddMemoryCache();
+
 // Repositories
 builder.Services.AddScoped<ILessonRepository, LessonRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+
 // Aplication Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ILessonService, LessonService>();
+
 // Middlewares
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
-// Database ñonfiguration
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+// Filters
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<MetadataHeaderFilter>();
+});
+
+// Cors ñonfiguration
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowBlazor", policy =>
+    {
+        policy.WithOrigins("https://localhost:7260", "http://localhost:5292")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 // JWT ñonfiguration
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -73,6 +95,9 @@ builder.Services.AddSwaggerGen(c =>
 });
 var app = builder.Build();
 
+app.UseMiddleware<RequestLoggingMiddleware>();
+app.UseExceptionHandler();
+
 // Auto migration and data seeding
 using (var scope = app.Services.CreateScope())
 {
@@ -98,7 +123,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseExceptionHandler();
+app.UseCors("AllowBlazor");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
