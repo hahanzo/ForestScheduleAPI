@@ -29,6 +29,12 @@ namespace ForestSchedule.Infrastructure.Data
                 .HasOne(ts => ts.Subject)
                 .WithMany(s => s.TeacherSubjects)
                 .HasForeignKey(ts => ts.SubjectId);
+
+            modelBuilder.Entity<Lesson>().HasIndex(l => l.GroupId);
+            modelBuilder.Entity<Lesson>().HasIndex(l => l.TeacherId);
+            modelBuilder.Entity<Lesson>().HasIndex(l => l.SubjectId);
+            modelBuilder.Entity<Lesson>().HasIndex(l => l.RoomId);
+            modelBuilder.Entity<Lesson>().HasIndex(l => l.DayOfWeek);
         }
     }
 }

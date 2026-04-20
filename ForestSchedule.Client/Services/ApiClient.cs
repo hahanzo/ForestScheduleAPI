@@ -1,12 +1,14 @@
-﻿using Microsoft.JSInterop;
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.JSInterop;
 
-namespace ForestSchedule.Client.Services
+namespace ForestSchedule.Client.Services;
+
+public class ApiClient(HttpClient http, IJSRuntime jsRuntime)
 {
-    public class ApiClient(HttpClient http, IJSRuntime jsRuntime)
+    private async Task SetBearerTokenAsync()
     {
-        public async Task SetBearerTokenAsync()
+        try
         {
             var token = await jsRuntime.InvokeAsync<string>("localStorage.getItem", "authToken");
 
@@ -14,29 +16,51 @@ namespace ForestSchedule.Client.Services
             {
                 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
             }
+            else
+            {
+                http.DefaultRequestHeaders.Authorization = null;
+            }
+        }
+        catch {}
+    }
+
+    public async Task<T?> GetAsync<T>(string url)
+    {
+        await SetBearerTokenAsync();
+        var response = await http.GetAsync(url);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Помилка: {response.StatusCode}. Деталі: {error}");
         }
 
-        public async Task<T?> GetAsync<T>(string url)
+        return await response.Content.ReadFromJsonAsync<T>();
+    }
+
+    public async Task<TResponse?> PostAsync<TResponse, TRequest>(string url, TRequest data)
+    {
+        await SetBearerTokenAsync();
+        var response = await http.PostAsJsonAsync(url, data);
+
+        if (!response.IsSuccessStatusCode)
         {
-            await SetBearerTokenAsync();
-            var response = await http.GetAsync(url);
-
-            if (!response.IsSuccessStatusCode)
-                throw new Exception($"Exception API: {response.StatusCode}");
-
-            return await response.Content.ReadFromJsonAsync<T>();
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Помилка: {response.StatusCode}. Деталі: {error}");
         }
 
-        public async Task<HttpResponseMessage> PostAsync<T>(string url, T data)
-        {
-            await SetBearerTokenAsync();
-            return await http.PostAsJsonAsync(url, data);
-        }
+        return await response.Content.ReadFromJsonAsync<TResponse>();
+    }
 
-        public async Task<HttpResponseMessage> DeleteAsync(string url)
+    public async Task DeleteAsync(string url)
+    {
+        await SetBearerTokenAsync();
+        var response = await http.DeleteAsync(url);
+
+        if (!response.IsSuccessStatusCode)
         {
-            await SetBearerTokenAsync();
-            return await http.DeleteAsync(url);
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Помилка видалення: {response.StatusCode}. Деталі: {error}");
         }
     }
 }

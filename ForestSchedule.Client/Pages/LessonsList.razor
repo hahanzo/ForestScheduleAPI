@@ -1,126 +1,196 @@
 ﻿@page "/lessons"
 @using ForestSchedule.Client.Services
+@using System.Timers
 @inject ApiClient Api
+@inject NavigationManager Nav
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
+@implements IDisposable
 
-<h3>Розклад занять</h3>
-
-<div class="row mb-3">
-    <div class="col-md-3">
-        <input @bind="searchTerm" class="form-control" placeholder="Пошук (предмет, аудиторія)..." />
-    </div>
-    <div class="col-md-2">
-        <input type="number" @bind="groupId" class="form-control" placeholder="ID Групи" />
-    </div>
-    <div class="col-md-3">
-        <select @bind="sortBy" class="form-select">
-            <option value="day">За днем тижня</option>
-            <option value="subject">За предметом</option>
-        </select>
-    </div>
-    <div class="col-md-2">
-        <button class="btn btn-secondary" @onclick="LoadData">Застосувати</button>
-    </div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Розклад занять</h3>
+    <a href="/lessons/create" class="btn btn-success">
+        <span class="oi oi-plus" aria-hidden="true"></span> Додати пару
+    </a>
 </div>
 
 @if (errorMessage != null)
 {
-    <div class="alert alert-danger">@errorMessage</div>
+    <div class="alert alert-danger shadow-sm">@errorMessage</div>
 }
-else if (lessons == null)
+
+<div class="row mb-4 bg-light p-3 rounded shadow-sm align-items-center">
+    <div class="col-md-4">
+        <label class="form-label text-muted small mb-1">Пошук</label>
+        <input @bind="SearchTerm" @bind:event="oninput" @onkeyup="HandleSearch" 
+               class="form-control" placeholder="Почніть писати..." />
+    </div>
+    <div class="col-md-4">
+        <label class="form-label text-muted small mb-1">Сортування</label>
+        <select @bind="sortBy" @bind:after="OnSortChanged" class="form-select">
+            <option value="day">За днем тижня</option>
+            <option value="subject">За предметом</option>
+        </select>
+    </div>
+</div>
+
+@if (isLoading)
 {
-    <p><em>Завантаження даних...</em></p>
+    <div class="text-center my-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Завантаження...</span>
+        </div>
+        <p class="mt-2 text-muted">Завантаження даних...</p>
+    </div>
+}
+else if (lessons?.Items == null || !lessons.Items.Any())
+{
+    <div class="alert alert-info text-center shadow-sm">
+        За вашим запитом не знайдено жодного заняття.
+    </div>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Предмет</th>
-                <th>Викладач</th>
-                <th>Група</th>
-                <th>День</th>
-                <th>Дії</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var lesson in lessons.Items)
-            {
+    <div class="table-responsive shadow-sm rounded">
+        <table class="table table-striped table-hover mb-0">
+            <thead class="table-dark">
                 <tr>
-                    <td>@lesson.SubjectName</td>
-                    <td>@lesson.TeacherName</td>
-                    <td>@lesson.GroupName</td>
-                    <td>@lesson.DayOfWeek</td>
-                    <td>
-                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteLesson(lesson.Id)">Видалити</button>
-                    </td>
+                    <th>Предмет</th>
+                    <th>Викладач</th>
+                    <th>Група</th>
+                    <th>День</th>
+                    <th class="text-center">Дії</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var lesson in lessons.Items)
+                {
+                    <tr>
+                        <td class="align-middle">@lesson.SubjectName</td>
+                        <td class="align-middle">@lesson.TeacherName</td>
+                        <td class="align-middle">@lesson.GroupName</td>
+                        <td class="align-middle">@lesson.DayOfWeek</td>
+                        <td class="text-center align-middle">
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteLesson(lesson.Id)">
+                                Видалити
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 
-    <div>
-        <button class="btn btn-outline-primary" disabled="@(pageNumber == 1)" @onclick="PrevPage">Попередня</button>
-        <span> Сторінка @pageNumber </span>
-        <button class="btn btn-outline-primary" @onclick="NextPage">Наступна</button>
+    <div class="d-flex justify-content-between align-items-center mt-4">
+        <button class="btn btn-secondary px-4" disabled="@(pageNumber <= 1)" @onclick="PrevPage">
+            &larr; Попередня
+        </button>
+        <span class="badge bg-primary fs-6 px-3 py-2">Сторінка @pageNumber</span>
+        <button class="btn btn-secondary px-4" disabled="@(lessons.Items.Count < 10)" @onclick="NextPage">
+            Наступна &rarr;
+        </button>
     </div>
 }
 
 @code {
     private PagedResult? lessons;
+    private bool isLoading = true;
     private string? errorMessage;
-
-    private string searchTerm = "";
-    private int? groupId;
+    
+    private string _searchTerm = "";
+    private Timer? _debounceTimer;
     private string sortBy = "day";
     private int pageNumber = 1;
 
+    private string SearchTerm 
+    { 
+        get => _searchTerm; 
+        set { _searchTerm = value; } 
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        var token = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "authToken");
+
+        if (string.IsNullOrEmpty(token))
+        {
+            Nav.NavigateTo("/");
+            return; 
+        }
+
+        await LoadData();
+    }
+
+    private void HandleSearch()
+    {
+        _debounceTimer?.Stop();
+        _debounceTimer = new Timer(500); 
+        _debounceTimer.Elapsed += async (s, e) => await InvokeAsync(async () => 
+        {
+            _debounceTimer.Stop();
+            pageNumber = 1; 
+            await LoadData();
+        });
+        _debounceTimer.Start();
+    }
+
+    private async Task OnSortChanged()
+    {
+        pageNumber = 1;
         await LoadData();
     }
 
     private async Task LoadData()
     {
+        isLoading = true;
+        errorMessage = null;
+        StateHasChanged();
+
         try
         {
-            var url = $"Lessons/search?PageNumber={pageNumber}&PageSize=10&SortBy={sortBy}";
-            if (!string.IsNullOrEmpty(searchTerm)) url += $"&SearchTerm={searchTerm}";
-            if (groupId.HasValue) url += $"&GroupId={groupId}";
+            var url = $"Lessons/search?PageNumber={pageNumber}&PageSize=10&SortBy={Uri.EscapeDataString(sortBy)}";
+            if (!string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                url += $"&SearchTerm={Uri.EscapeDataString(_searchTerm)}";
+            }
 
             lessons = await Api.GetAsync<PagedResult>(url);
         }
         catch (Exception ex)
         {
-            errorMessage = $"Load error: {ex.Message}";
+            if (ex.Message.Contains("401")) 
+            {
+                Nav.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = "Помилка завантаження даних. Перевірте з'єднання з сервером.";
+            }
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
         }
     }
 
     private async Task DeleteLesson(int id)
     {
-        var response = await Api.DeleteAsync($"Lessons/{id}");
-        if (response.IsSuccessStatusCode)
+        try
         {
+            await Api.DeleteAsync($"Lessons/{id}");
             await LoadData();
         }
-        else
+        catch (Exception)
         {
-            errorMessage = "Delete error. You may not have administrator rights.";
+            errorMessage = "Помилка видалення! Переконайтеся, що ви увійшли як Адміністратор.";
         }
     }
 
     private async Task PrevPage() { if (pageNumber > 1) { pageNumber--; await LoadData(); } }
     private async Task NextPage() { pageNumber++; await LoadData(); }
 
-    public class PagedResult { 
-        public List<LessonDto> Items { get; set; } = new(); 
-        public int TotalCount { get; set; } 
-    }
-    
-    public class LessonDto { 
-        public int Id { get; set; } 
-        public string SubjectName { get; set; } = ""; 
-        public string TeacherName { get; set; } = ""; 
-        public string GroupName { get; set; } = ""; 
-        public int DayOfWeek { get; set; } 
-    }
+    public void Dispose() => _debounceTimer?.Dispose();
+
+    public class PagedResult { public List<LessonDto> Items { get; set; } = new(); public int TotalCount { get; set; } }
+    public class LessonDto { public int Id { get; set; } public string SubjectName { get; set; } = ""; public string TeacherName { get; set; } = ""; public string GroupName { get; set; } = ""; public int DayOfWeek { get; set; } }
 }

@@ -1,26 +1,83 @@
 ﻿@page "/"
+@layout Layout.AuthLayout  
+@using ForestSchedule.Client.Services
+@inject ApiClient Api
 @inject Microsoft.JSInterop.IJSRuntime JSRuntime
 @inject NavigationManager Nav
 
-<div class="text-center mt-5">
-    <p>Перевірка сесії...</p>
+<div class="container mt-5" style="max-width: 400px;">
+    <h3 class="text-center mb-4">Вхід в систему</h3>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="mb-3">
+                <label>Email (nltu.edu.ua / nltu.lviv.ua):</label>
+                <input @bind="loginDto.Email" class="form-control" placeholder="user@nltu.edu.ua" />
+            </div>
+            <div class="mb-3">
+                <label>Пароль:</label>
+                <input type="password" @bind="loginDto.Password" class="form-control" />
+            </div>
+            <button class="btn btn-success w-100" @onclick="ExecuteLogin" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span>Завантаження...</span>
+                }
+                else
+                {
+
+                    <span>Увійти</span>
+                }
+            </button>
+        </div>
+    </div>
 </div>
 
 @code {
+    private LoginRequest loginDto = new();
+    private string? errorMessage;
+    private bool isLoading;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             var token = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "authToken");
+            if (!string.IsNullOrEmpty(token)) Nav.NavigateTo("/lessons");
+        }
+    }
 
-            if (string.IsNullOrEmpty(token))
+    private async Task ExecuteLogin()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await Api.PostAsync<AuthResponse, LoginRequest>("Auth/login", loginDto);
+
+            if (result != null)
             {
-                Nav.NavigateTo("/login");
-            }
-            else
-            {
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", result.Token);
                 Nav.NavigateTo("/lessons");
             }
         }
+        catch (Exception ex)
+        {
+            errorMessage = "Невірний логін або пароль. Перевірте дані.";
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
+
+    public class LoginRequest { public string Email { get; set; } = ""; public string Password { get; set; } = ""; }
+    public class AuthResponse { public string Token { get; set; } = ""; public string Role { get; set; } = ""; }
 }

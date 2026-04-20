@@ -56,6 +56,8 @@ namespace ForestSchedule.Infrastructure.Repositories
         public async Task<(IEnumerable<Lesson> Lessons, int TotalCount)> GetLessonsPagedAsync(LessonQueryParameters p)
         {
             var query = context.Lessons
+                .AsNoTracking()
+                .AsSplitQuery()
                 .Include(l => l.Group)
                 .Include(l => l.Teacher)
                 .Include(l => l.Subject)
@@ -69,14 +71,15 @@ namespace ForestSchedule.Infrastructure.Repositories
             if (p.TeacherId.HasValue)
                 query = query.Where(l => l.TeacherId == p.TeacherId.Value);
 
-            // Searching
+            //Searching
             if (!string.IsNullOrWhiteSpace(p.SearchTerm))
             {
-                var search = p.SearchTerm.ToLower();
+                var search = $"{p.SearchTerm}%";
+
                 query = query.Where(l =>
-                    l.Subject.Name.ToLower().Contains(search) ||
-                    (l.Teacher != null && l.Teacher.FullName.ToLower().Contains(search)) ||
-                    (l.Room != null && l.Room.Name.ToLower().Contains(search)));
+                    EF.Functions.Like(l.Subject.Name, search) ||
+                    (l.Teacher != null && EF.Functions.Like(l.Teacher.FullName, search)) ||
+                    (l.Room != null && EF.Functions.Like(l.Room.Name, search)));
             }
 
             // Sorting

@@ -1,0 +1,173 @@
+﻿@page "/lessons/create"
+@using ForestSchedule.Client.Services
+@using System.ComponentModel.DataAnnotations;
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Додати нове заняття</h3>
+</div>
+
+@if (errorMessage != null)
+{
+    <div class="alert alert-danger shadow-sm">@errorMessage</div>
+}
+
+<div class="card shadow-sm border-0">
+    <div class="card-body bg-light rounded">
+        <EditForm Model="createDto" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+
+            <ValidationSummary class="text-danger mb-3" />
+
+            <h5 class="text-muted mb-3 pb-2 border-bottom">Основні ідентифікатори</h5>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">ID Групи:</label>
+                    <InputNumber @bind-Value="createDto.GroupId" class="form-control" />
+                    <ValidationMessage For="@(() => createDto.GroupId)" class="text-danger small" />
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">ID Предмету:</label>
+                    <InputNumber @bind-Value="createDto.SubjectId" class="form-control" />
+                    <ValidationMessage For="@(() => createDto.SubjectId)" class="text-danger small" />
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">ID Викладача:</label>
+                    <InputNumber @bind-Value="createDto.TeacherId" class="form-control" />
+                    <ValidationMessage For="@(() => createDto.TeacherId)" class="text-danger small" />
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">ID Аудиторії:</label>
+                    <InputNumber @bind-Value="createDto.RoomId" class="form-control" />
+                    <ValidationMessage For="@(() => createDto.RoomId)" class="text-danger small" />
+                </div>
+            </div>
+
+            <h5 class="text-muted mt-2 mb-3 pb-2 border-bottom">Розклад та час</h5>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">День тижня (1-6):</label>
+                    <InputNumber @bind-Value="createDto.DayOfWeek" class="form-control" />
+                    <ValidationMessage For="@(() => createDto.DayOfWeek)" class="text-danger small" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Номер пари (1-8):</label>
+                    <InputNumber @bind-Value="createDto.LessonNumber" class="form-control" />
+                    <ValidationMessage For="@(() => createDto.LessonNumber)" class="text-danger small" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Тип тижня:</label>
+                    <InputSelect @bind-Value="createDto.WeekType" class="form-select">
+                        <option value="">-- Оберіть тип --</option>
+                        <option value="Чисельник">Чисельник</option>
+                        <option value="Знаменник">Знаменник</option>
+                        <option value="Кожен тиждень">Кожен тиждень</option>
+                    </InputSelect>
+                    <ValidationMessage For="@(() => createDto.WeekType)" class="text-danger small" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Тип заняття:</label>
+                    <InputSelect @bind-Value="createDto.Type" class="form-select">
+                        <option value="">-- Оберіть тип --</option>
+                        <option value="Лекція">Лекція</option>
+                        <option value="Практика">Практична</option>
+                        <option value="Лабораторна">Лабораторна</option>
+                    </InputSelect>
+                    <ValidationMessage For="@(() => createDto.Type)" class="text-danger small" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Час початку:</label>
+                    <InputText @bind-Value="createDto.TimeStart" class="form-control" placeholder="08:30" />
+                    <ValidationMessage For="@(() => createDto.TimeStart)" class="text-danger small" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Час кінця:</label>
+                    <InputText @bind-Value="createDto.TimeEnd" class="form-control" placeholder="09:50" />
+                    <ValidationMessage For="@(() => createDto.TimeEnd)" class="text-danger small" />
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-success px-4" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span>Збереження...</span>
+                    }
+                    else
+                    {
+                        <span>Зберегти заняття</span>
+                    }
+                </button>
+                <a href="/lessons" class="btn btn-outline-secondary ms-2 px-4">Скасувати</a>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private CreateLessonDto createDto = new();
+    private bool isLoading = false;
+    private string? errorMessage;
+
+    private async Task HandleValidSubmit()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            await Api.PostAsync<object, CreateLessonDto>("Lessons", createDto);
+
+            Nav.NavigateTo("/lessons");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Помилка збереження. Перевір, чи існують введені ID в базі даних. Деталі: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    public class CreateLessonDto
+    {
+        [Range(1, int.MaxValue, ErrorMessage = "Будь ласка, введіть коректний ID Групи")]
+        public int GroupId { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Будь ласка, введіть коректний ID Предмету")]
+        public int SubjectId { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Будь ласка, введіть коректний ID Викладача")]
+        public int TeacherId { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Будь ласка, введіть коректний ID Аудиторії")]
+        public int RoomId { get; set; }
+
+        [Range(1, 6, ErrorMessage = "День тижня має бути від 1 (Понеділок) до 6 (Субота)")]
+        public int DayOfWeek { get; set; }
+
+        [Range(1, 8, ErrorMessage = "Номер пари має бути від 1 до 8")]
+        public int LessonNumber { get; set; }
+
+        [Required(ErrorMessage = "Тип тижня є обов'язковим")]
+        [StringLength(50, ErrorMessage = "Занадто довга назва")]
+        public string WeekType { get; set; } = "";
+
+        [Required(ErrorMessage = "Тип заняття є обов'язковим")]
+        public string Type { get; set; } = "";
+
+        [Required(ErrorMessage = "Вкажіть час початку")]
+        [RegularExpression(@"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$", ErrorMessage = "Формат часу має бути ГГ:ХХ (наприклад, 08:30)")]
+        public string TimeStart { get; set; } = "";
+
+        [Required(ErrorMessage = "Вкажіть час завершення")]
+        [RegularExpression(@"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$", ErrorMessage = "Формат часу має бути ГГ:ХХ (наприклад, 09:50)")]
+        public string TimeEnd { get; set; } = "";
+    }
+}
